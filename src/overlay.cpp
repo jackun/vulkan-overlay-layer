@@ -1,5 +1,6 @@
 #include <array>
 #include <cstdlib>
+#include "dispatch.hpp"
 #include "overlay.hpp"
 #include "vks/VulkanTools.h"
 
@@ -120,6 +121,10 @@ void TextOverlay::prepareResources()
 
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->AllocateCommandBuffers(vulkanDevice->logicalDevice, &cmdBufAllocateInfo, cmdBuffers.data()));
 
+	const DeviceData *device_data = GetDeviceData(vulkanDevice->logicalDevice);
+	for (uint32_t i = 0; i < cmdBuffers.size(); ++i)
+		device_data->set_device_loader_data(vulkanDevice->logicalDevice, cmdBuffers[i]);
+
 	// Vertex buffer
 	VkDeviceSize bufferSize = TEXTOVERLAY_MAX_CHAR_COUNT * sizeof(glm::vec4);
 
@@ -195,6 +200,8 @@ void TextOverlay::prepareResources()
 	VkCommandBuffer copyCmd;
 	cmdBufAllocateInfo.commandBufferCount = 1;
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->AllocateCommandBuffers(vulkanDevice->logicalDevice, &cmdBufAllocateInfo, &copyCmd));
+
+	device_data->set_device_loader_data(vulkanDevice->logicalDevice, copyCmd);
 
 	VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->BeginCommandBuffer(copyCmd, &cmdBufInfo));

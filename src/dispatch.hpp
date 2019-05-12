@@ -17,7 +17,7 @@ void *GetKey(DispatchableType inst)
 struct InstanceData {
 	VkLayerInstanceDispatchTable vtable;
 	VkInstance instance;
-
+	PFN_vkSetInstanceLoaderData set_instance_loader_data;
 	std::vector<VkExtensionProperties> exts;
 	Stats stats;
 
@@ -63,3 +63,5 @@ struct QueueData {
 // layer book-keeping information, to store dispatch tables by key
 extern std::map<void *, InstanceData> g_instance_dispatch;
 extern std::map<void *, DeviceData> g_device_dispatch;
+InstanceData *GetInstanceData(void *key);
+DeviceData *GetDeviceData(void *key);

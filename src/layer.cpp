@@ -430,6 +430,9 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateInstance(
 	//TODO nullptr :(
 	dispatchTable.EnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties) gpa(*pInstance, "vkEnumerateInstanceExtensionProperties");
 
+	VkLayerInstanceCreateInfo *load_data_info = get_instance_chain_info(pCreateInfo, VK_LOADER_DATA_CALLBACK);
+	GetInstanceData(*pInstance)->set_instance_loader_data = load_data_info->u.pfnSetInstanceLoaderData;
+
 	GetInstanceData(*pInstance)->vtable = dispatchTable;
 	GetInstanceData(*pInstance)->instance = *pInstance;
 
@@ -901,14 +904,18 @@ VK_LAYER_EXPORT VkResult Overlay_CreateSwapchainKHR(
 	VkSwapchainKHR*                             pSwapchain)
 {
 
-	scoped_lock l(global_lock);
+	VkResult result = VK_SUCCESS;
+	SwapchainData *swapchain_data = nullptr;
+	{
+		scoped_lock l(global_lock);
 
-	VkResult result = g_device_dispatch[GetKey(device)].vtable.CreateSwapchainKHR(device, pCreateInfo, pAllocator, pSwapchain);
-	if (result != VK_SUCCESS) return result;
+		VkResult result = g_device_dispatch[GetKey(device)].vtable.CreateSwapchainKHR(device, pCreateInfo, pAllocator, pSwapchain);
+		if (result != VK_SUCCESS) return result;
 
-	SwapchainData *swapchain_data = &g_swapchain_data[*pSwapchain];
-	swapchain_data->swapchain = *pSwapchain;
-	swapchain_data->device = &g_device_dispatch[GetKey(device)];
+		swapchain_data = &g_swapchain_data[*pSwapchain];
+		swapchain_data->swapchain = *pSwapchain;
+		swapchain_data->device = &g_device_dispatch[GetKey(device)];
+	}
 	SetupSwapchainData(swapchain_data, pCreateInfo);
 	return result;
 }
