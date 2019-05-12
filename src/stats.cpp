@@ -223,7 +223,7 @@ bool AMDgpuStats::Init()
 					continue;
 
 				#ifndef NDEBUG
-				std::cout << dp->d_name << std::endl;
+				std::cout << "hwmon: " << dp->d_name << std::endl;
 				#endif
 
 				str.clear(); str.str("");

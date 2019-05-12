@@ -165,7 +165,9 @@ void readExtensions(VkPhysicalDevice device)
 		std::vector<VkExtensionProperties> exts(extCount);
 		vkRes = GetInstanceData(device)->vtable.EnumerateDeviceExtensionProperties(device, NULL, &extCount, &exts.front());
 		for (auto& ext : exts) {
-			printf("device ext: %s\n", ext.extensionName);
+			#ifndef NDEBUG
+			std::cerr << "Device ext: " << ext.extensionName << std::endl;
+			#endif
 			GetInstanceData(device)->exts.push_back(ext);
 		}
 	} while (vkRes == VK_INCOMPLETE);
@@ -389,7 +391,7 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateInstance(
 		return VK_ERROR_INITIALIZATION_FAILED;
 	}
 
-	std::vector<const char*> createExts;
+	/*std::vector<const char*> createExts;
 	createExts.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
 	for(uint32_t i=0; i<pCreateInfo->enabledExtensionCount; i++) {
 		createExts.push_back(pCreateInfo->ppEnabledExtensionNames[i]);
@@ -401,9 +403,9 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateInstance(
 
 	for(auto c : createExts) {
 		printf("%s exts: %s\n", __func__, c);
-	}
-	
-	VkResult ret = fpCreateInstance(&createInfo, pAllocator, pInstance);
+	}*/
+
+	VkResult ret = fpCreateInstance(pCreateInfo, pAllocator, pInstance);
 	if (ret != VK_SUCCESS)
 		return ret;
 
@@ -511,7 +513,7 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateDevice(
 
 	VkPhysicalDeviceProperties properties;
 	instance->vtable.GetPhysicalDeviceProperties(physicalDevice, &properties);
-	printf("Vendor: 0x%04X Device: 0x%04X\n", properties.vendorID, properties.deviceID);
+	//printf("Vendor: 0x%04X Device: 0x%04X\n", properties.vendorID, properties.deviceID);
 
 	//FIXME nullptr, nullptr, nullptr, nullptr, nullptr, nullptr :(
 	if (false && instance->extensionSupported(VK_EXT_PCI_BUS_INFO_EXTENSION_NAME)) {
@@ -543,8 +545,6 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateDevice(
 
 VK_LAYER_EXPORT void VKAPI_CALL Overlay_DestroyDevice(VkDevice device, const VkAllocationCallbacks* pAllocator)
 {
-	printf("%s\n", __func__);
-
 	scoped_lock l(global_lock);
 	auto key = GetKey(device);
 
@@ -619,7 +619,6 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_EnumerateDeviceExtensionProperties(
 static void SetupSwapchainData(struct SwapchainData *data,
 								const VkSwapchainCreateInfoKHR *pCreateInfo)
 {
-	printf("%s\n", __func__);
 	data->width = pCreateInfo->imageExtent.width;
 	data->height = pCreateInfo->imageExtent.height;
 	data->format = pCreateInfo->imageFormat;
@@ -733,8 +732,6 @@ static void ShutdownSwapchainData(struct SwapchainData *data)
 {
 	struct DeviceData *device_data = data->device;
 
-	printf("%s\n", __func__);
-
 	delete data->overlay;
 	data->overlay = nullptr;
 
@@ -749,23 +746,6 @@ static void ShutdownSwapchainData(struct SwapchainData *data)
 	if (data->submission_semaphore)
 		device_data->vtable.DestroySemaphore(device_data->device, data->submission_semaphore, NULL);
 	data->submission_semaphore = nullptr;
-
-   //device_data->vtable.DestroyPipeline(device_data->device, data->pipeline, NULL);
-   //device_data->vtable.DestroyPipelineLayout(device_data->device, data->pipeline_layout, NULL);
-
-   //device_data->vtable.DestroyDescriptorPool(device_data->device,
-   //                                          data->descriptor_pool, NULL);
-   //device_data->vtable.DestroyDescriptorSetLayout(device_data->device,
-   //                                               data->descriptor_layout, NULL);
-
-   //device_data->vtable.DestroySampler(device_data->device, data->font_sampler, NULL);
-   //device_data->vtable.DestroyImageView(device_data->device, data->font_image_view, NULL);
-   //device_data->vtable.DestroyImage(device_data->device, data->font_image, NULL);
-   //device_data->vtable.FreeMemory(device_data->device, data->font_mem, NULL);
-
-   //device_data->vtable.DestroyBuffer(device_data->device, data->upload_font_buffer, NULL);
-   //device_data->vtable.FreeMemory(device_data->device, data->upload_font_buffer_mem, NULL);
-
 }
 
 static void RenderSwapchainDisplay(struct SwapchainData *data,
@@ -842,10 +822,8 @@ VK_LAYER_EXPORT void VKAPI_CALL Overlay_DestroySwapchainKHR(
 	VkSwapchainKHR                              swapchain,
 	const VkAllocationCallbacks*                pAllocator)
 {
-
 	struct SwapchainData *swapchain_data = GetSwapchainData(swapchain);
 
-	printf("%s\n", __func__);
 	ShutdownSwapchainData(swapchain_data);
 	swapchain_data->device->vtable.DestroySwapchainKHR(device, swapchain, pAllocator);
 
@@ -968,7 +946,6 @@ VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL Overlay_GetDeviceProcAddr(VkDevice
 
 VK_LAYER_EXPORT PFN_vkVoidFunction VKAPI_CALL Overlay_GetInstanceProcAddr(VkInstance instance, const char *pName)
 {
-	printf("%s: %s\n", __func__, pName);
 	// instance chain functions we intercept
 	GETPROCADDR(GetInstanceProcAddr);
 	GETPROCADDR(EnumerateInstanceLayerProperties);

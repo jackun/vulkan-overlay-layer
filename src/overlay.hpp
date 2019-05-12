@@ -54,7 +54,7 @@ private:
 
 	stb_fontchar stbFontData[STB_FONT_consolas_bold_24_latin1_NUM_CHARS];
 	uint32_t numLetters;
-	float fontColor[4] = {1.f, .0f, .0f, 1.0f};
+	float fontColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
 public:
 
 	enum TextAlign { alignLeft, alignCenter, alignRight };

@@ -54,7 +54,8 @@ vec4 shadowedText(void)
 vec4 plainText(void)
 {
 	float value = texture(s_font, inUV).r;
-	return vec4(color.rgb, value * color.a);
+	vec4 shadow = vec4(vec3(0.3), texture(s_font, inUV + shadowOffset).r);
+	return mix(vec4(color.rgb, value * color.a), shadow, 1.0-value);
 }
 
 void main(void)

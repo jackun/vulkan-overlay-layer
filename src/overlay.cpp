@@ -1,4 +1,5 @@
 #include <array>
+#include <cstdlib>
 #include "overlay.hpp"
 #include "vks/VulkanTools.h"
 
@@ -52,6 +53,17 @@ TextOverlay::TextOverlay(
 
 	this->frameBufferWidth = framebufferwidth;
 	this->frameBufferHeight = framebufferheight;
+
+	char *env = getenv("NUUDEL_RGBA");
+	int r,g,b,a, ret;
+	if (env && (ret = sscanf(env, "%d,%d,%d,%d", &r, &g, &b, &a)) >= 3)
+	{
+		fontColor[0] = r / 255.f;
+		fontColor[1] = g / 255.f;
+		fontColor[2] = b / 255.f;
+		if (ret == 4)
+			fontColor[3] = a / 255.f;
+	}
 
 	cmdBuffers.resize(framebuffers.size());
 	prepareResources();
