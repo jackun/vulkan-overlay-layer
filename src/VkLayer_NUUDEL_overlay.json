@@ -1,0 +1,21 @@
+{
+    "file_format_version" : "1.0.0",
+    "layer" : {
+        "name": "VK_LAYER_NUUDEL_overlay",
+        "type": "GLOBAL",
+        "library_path": "libVkLayer_NUUDEL_overlay.so",
+        "functions": {
+          "vkGetInstanceProcAddr": "Overlay_GetInstanceProcAddr",
+          "vkGetDeviceProcAddr": "Overlay_GetDeviceProcAddr"
+        },
+        "enable_environment": {
+          "ENABLE_NUUDEL_LAYER": "1"
+        },
+        "disable_environment": {
+          "DISABLE_NUUDEL_LAYER": "1"
+        },
+        "api_version": "1.1.73",
+        "implementation_version": "1",
+        "description": "Overlay layer"
+    }
+}
