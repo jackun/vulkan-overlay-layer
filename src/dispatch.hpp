@@ -17,7 +17,7 @@ void *GetKey(DispatchableType inst)
 struct InstanceData {
 	VkLayerInstanceDispatchTable vtable;
 	VkInstance instance;
-	PFN_vkSetInstanceLoaderData set_instance_loader_data;
+
 	std::vector<VkExtensionProperties> exts;
 	Stats stats;
 

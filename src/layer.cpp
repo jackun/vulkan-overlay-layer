@@ -428,9 +428,6 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateInstance(
 	//TODO nullptr :(
 	dispatchTable.EnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties) gpa(*pInstance, "vkEnumerateInstanceExtensionProperties");
 
-	VkLayerInstanceCreateInfo *load_data_info = get_instance_chain_info(pCreateInfo, VK_LOADER_DATA_CALLBACK);
-	GetInstanceData(*pInstance)->set_instance_loader_data = load_data_info->u.pfnSetInstanceLoaderData;
-
 	GetInstanceData(*pInstance)->vtable = dispatchTable;
 	GetInstanceData(*pInstance)->instance = *pInstance;
 
@@ -489,7 +486,6 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateDevice(
 	if (ret != VK_SUCCESS)
 		return ret;
 
-	GetInstanceData(physicalDevice)->set_instance_loader_data(GetInstanceData(physicalDevice)->instance, physicalDevice);
 	InstanceData *instance = GetInstanceData(physicalDevice);
 	if (instance->exts.size() == 0)
 		readExtensions(physicalDevice);
