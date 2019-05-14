@@ -136,8 +136,6 @@ struct SwapchainData {
 
 	VkRenderPass render_pass = nullptr;
 
-	VkCommandPool command_pool = nullptr;
-
 	VkSemaphore submission_semaphore = nullptr;
 };
 
@@ -668,8 +666,6 @@ static void SetupSwapchainData(struct SwapchainData *data,
 												 &render_pass_info,
 												 NULL, &data->render_pass));
 
-   //setup_swapchain_data_pipeline(data);
-
 	uint32_t n_images = 0;
 	VK_CHECK_RESULT(device_data->vtable.GetSwapchainImagesKHR(device_data->device,
 													  data->swapchain,
@@ -718,17 +714,10 @@ static void SetupSwapchainData(struct SwapchainData *data,
 													NULL, &data->framebuffers[i]));
 	}
 
-	// Create command pool
-	VkCommandPoolCreateInfo cmdPoolInfo = {};
-	cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	cmdPoolInfo.queueFamilyIndex = device_data->graphic_queue->family_index;
-	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-	VK_CHECK_RESULT(device_data->vtable.CreateCommandPool(device_data->device, &cmdPoolInfo, nullptr, &data->command_pool));
-
 	data->overlay = new TextOverlay(device_data->vulkanDevice,
 		device_data->graphic_queue->queue, data->framebuffers,
 		data->format, data->width, data->height);
-	//updateTextOverlay(data->overlay);
+	//updateTextOverlay(data, data->overlay);
 }
 
 static void ShutdownSwapchainData(struct SwapchainData *data)
@@ -744,7 +733,6 @@ static void ShutdownSwapchainData(struct SwapchainData *data)
 	}
 
 	device_data->vtable.DestroyRenderPass(device_data->device, data->render_pass, NULL);
-	device_data->vtable.DestroyCommandPool(device_data->device, data->command_pool, NULL);
 
 	if (data->submission_semaphore)
 		device_data->vtable.DestroySemaphore(device_data->device, data->submission_semaphore, NULL);
@@ -808,7 +796,7 @@ static void RenderSwapchainDisplay(struct SwapchainData *data,
 	VkPipelineStageFlags stage_wait = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 
 	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	//submit_info.commandBufferCount = 1;
+	submit_info.commandBufferCount = 0;
 	//submit_info.pCommandBuffers = &command_buffer;
 	submit_info.pWaitDstStageMask = &stage_wait;
 	submit_info.waitSemaphoreCount = n_wait_semaphores;

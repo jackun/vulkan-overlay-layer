@@ -698,16 +698,11 @@ void TextOverlay::updateCommandBuffers(uint32_t i, VkImageMemoryBarrier imb)
 // Does a queue wait idle
 void TextOverlay::submit(VkQueue queue, uint32_t bufferindex, VkSubmitInfo submitInfo)
 {
-/*	if (!visible)
-	{
-		return;
-	}*/
-
 	//VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	//submitInfo.commandBufferCount = visible ? 1 : 0; // toggle rendering, but call VkQueueSubmit so present semaphore gets signalled
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &cmdBuffers[bufferindex];
 
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->QueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
-	VK_CHECK_RESULT(vulkanDevice->getDispatch()->QueueWaitIdle(queue));
 }
