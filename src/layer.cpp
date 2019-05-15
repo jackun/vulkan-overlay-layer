@@ -136,7 +136,8 @@ struct SwapchainData {
 
 	VkRenderPass render_pass = nullptr;
 
-	VkSemaphore submission_semaphore = nullptr;
+	std::vector<VkSemaphore> submission_semaphore;
+	std::vector<VkFence> fences;
 };
 
 std::map<void *, SwapchainData> g_swapchain_data;
@@ -675,6 +676,8 @@ static void SetupSwapchainData(struct SwapchainData *data,
 	data->images.resize(n_images);
 	data->image_views.resize(n_images);
 	data->framebuffers.resize(n_images);
+	data->submission_semaphore.resize(n_images);
+	data->fences.resize(n_images);
 
 	VK_CHECK_RESULT(device_data->vtable.GetSwapchainImagesKHR(device_data->device,
 													  data->swapchain,
@@ -717,7 +720,7 @@ static void SetupSwapchainData(struct SwapchainData *data,
 	data->overlay = new TextOverlay(device_data->vulkanDevice,
 		device_data->graphic_queue->queue, data->framebuffers,
 		data->format, data->width, data->height);
-	//updateTextOverlay(data, data->overlay);
+	updateTextOverlay(data, data->overlay);
 }
 
 static void ShutdownSwapchainData(struct SwapchainData *data)
@@ -730,13 +733,17 @@ static void ShutdownSwapchainData(struct SwapchainData *data)
 	for (uint32_t i = 0; i < data->images.size(); i++) {
 		device_data->vtable.DestroyImageView(device_data->device, data->image_views[i], NULL);
 		device_data->vtable.DestroyFramebuffer(device_data->device, data->framebuffers[i], NULL);
+		if (data->submission_semaphore[i]) {
+			device_data->vtable.DestroySemaphore(device_data->device, data->submission_semaphore[i], NULL);
+			data->submission_semaphore[i] = nullptr;
+		}
+		if (data->fences[i]) {
+			device_data->vtable.DestroyFence(device_data->device, data->fences[i], NULL);
+			data->fences[i] = nullptr;
+		}
 	}
 
 	device_data->vtable.DestroyRenderPass(device_data->device, data->render_pass, NULL);
-
-	if (data->submission_semaphore)
-		device_data->vtable.DestroySemaphore(device_data->device, data->submission_semaphore, NULL);
-	data->submission_semaphore = nullptr;
 }
 
 static void RenderSwapchainDisplay(struct SwapchainData *data,
@@ -780,9 +787,24 @@ static void RenderSwapchainDisplay(struct SwapchainData *data,
 	throttle = (throttle+1) % 20;*/
 	data->overlay->updateCommandBuffers(image_index, imb);
 
-	if (data->submission_semaphore) {
+	if (data->fences[image_index]) {
+		if (device_data->vtable.GetFenceStatus(device_data->device, data->fences[image_index]) != VK_SUCCESS)
+			VK_CHECK_RESULT(device_data->vtable.WaitForFences(device_data->device, 1, &data->fences[image_index], VK_TRUE, UINT64_MAX));
+
+		device_data->vtable.ResetFences(device_data->device, 1,
+										&data->fences[image_index]);
+	} else {
+		VkFenceCreateInfo fence_info = {};
+		fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		VK_CHECK_RESULT(device_data->vtable.CreateFence(device_data->device,
+			&fence_info,
+			NULL,
+			&data->fences[image_index]));
+	}
+
+	if (data->submission_semaphore[image_index]) {
 		device_data->vtable.DestroySemaphore(device_data->device,
-											data->submission_semaphore,
+											data->submission_semaphore[image_index],
 											NULL);
    }
 
@@ -790,7 +812,7 @@ static void RenderSwapchainDisplay(struct SwapchainData *data,
 	VkSemaphoreCreateInfo semaphore_info = {};
 	semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 	VK_CHECK_RESULT(device_data->vtable.CreateSemaphore(device_data->device, &semaphore_info,
-												NULL, &data->submission_semaphore));
+												NULL, &data->submission_semaphore[image_index]));
 
 	VkSubmitInfo submit_info = {};
 	VkPipelineStageFlags stage_wait = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -802,10 +824,10 @@ static void RenderSwapchainDisplay(struct SwapchainData *data,
 	submit_info.waitSemaphoreCount = n_wait_semaphores;
 	submit_info.pWaitSemaphores = wait_semaphores;
 	submit_info.signalSemaphoreCount = 1;
-	submit_info.pSignalSemaphores = &data->submission_semaphore;
+	submit_info.pSignalSemaphores = &data->submission_semaphore[image_index];
 
 	// Submit text overlay to queue
-	data->overlay->submit(device_data->graphic_queue->queue, image_index, submit_info);
+	data->overlay->submit(device_data->graphic_queue->queue, image_index, submit_info, data->fences[image_index]);
 }
 
 VK_LAYER_EXPORT void VKAPI_CALL Overlay_DestroySwapchainKHR(
@@ -866,12 +888,12 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_QueuePresentKHR(
 		* wait on them as well, we can just wait on the overlay submission
 		* semaphore.
 		*/
-		present_info.pWaitSemaphores = &swapchain_data->submission_semaphore;
+		present_info.pWaitSemaphores = &swapchain_data->submission_semaphore[pPresentInfo->pImageIndices[i]];
 		present_info.waitSemaphoreCount = 1;
 
 		VkResult chain_result;
 		{
-			scoped_lock l(global_lock);
+			//scoped_lock l(global_lock);
 			//chain_result = g_device_dispatch[GetKey(queue)].vtable.QueuePresentKHR(queue, pPresentInfo);
 			chain_result= queue_data->device->vtable.QueuePresentKHR(queue, &present_info);
 		}

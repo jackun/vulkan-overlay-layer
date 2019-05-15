@@ -696,7 +696,7 @@ void TextOverlay::updateCommandBuffers(uint32_t i, VkImageMemoryBarrier imb)
 
 // Submit the text command buffers to a queue
 // Does a queue wait idle
-void TextOverlay::submit(VkQueue queue, uint32_t bufferindex, VkSubmitInfo submitInfo)
+void TextOverlay::submit(VkQueue queue, uint32_t bufferindex, VkSubmitInfo submitInfo, VkFence fence)
 {
 	//VkSubmitInfo submitInfo = {};
 	submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -704,5 +704,6 @@ void TextOverlay::submit(VkQueue queue, uint32_t bufferindex, VkSubmitInfo submi
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &cmdBuffers[bufferindex];
 
-	VK_CHECK_RESULT(vulkanDevice->getDispatch()->QueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE));
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->QueueSubmit(queue, 1, &submitInfo, fence));
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->WaitForFences(vulkanDevice->logicalDevice, 1, &fence, VK_TRUE, UINT64_MAX));
 }

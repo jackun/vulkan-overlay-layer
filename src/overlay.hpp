@@ -99,5 +99,5 @@ public:
 
 	// Submit the text command buffers to a queue
 	// Does a queue wait idle
-	void submit(VkQueue queue, uint32_t bufferindex, VkSubmitInfo submit_info);
+	void submit(VkQueue queue, uint32_t bufferindex, VkSubmitInfo submit_info, VkFence fence);
 };
