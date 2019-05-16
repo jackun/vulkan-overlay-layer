@@ -1,9 +1,12 @@
 [submodule "external/Vulkan-Docs"]
 	path = external/Vulkan-Docs
 	url = https://github.com/KhronosGroup/Vulkan-Docs.git
+	branch = master
 [submodule "external/Vulkan-Loader"]
 	path = external/Vulkan-Loader
 	url = https://github.com/KhronosGroup/Vulkan-Loader.git
+	branch = master
 [submodule "external/glm"]
 	path = external/glm
 	url = https://github.com/g-truc/glm
+	branch = master
