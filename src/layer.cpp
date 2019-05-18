@@ -6,7 +6,6 @@
 #include <string.h>
 #include <cstdlib>
 
-#include <vector>
 #include <mutex>
 #include <chrono>
 #include <ctime>
@@ -233,10 +232,11 @@ static void DeviceMapQueues(struct DeviceData *data,
 }
 
 // Update the text buffer displayed by the text overlay
-static void updateTextOverlay(const SwapchainData * const swapchain, TextOverlay *textOverlay)
+static void updateTextOverlay(const SwapchainData * const swapchain)
 {
-	const InstanceData * const instance = swapchain->device->instance;
 	const DeviceData * const device_data = swapchain->device;
+	const InstanceData * const instance = device_data->instance;
+	TextOverlay *textOverlay = swapchain->overlay;
 
 	textOverlay->beginTextUpdate();
 
@@ -295,14 +295,12 @@ static void updateTextOverlay(const SwapchainData * const swapchain, TextOverlay
 				tmp_y += spacing_y;
 				textOverlay->addText(ss.str(), tmp_x, tmp_y, 0.9f);
 			}
-
 		}
 
-		//instance->stats.UpdateCPUData();
 		int cpuid = 0;
 		//double period = instance->stats.GetCPUPeriod();
 		//printf("period %f\n", period);
-		for (const CPUData &cpuData : instance->stats.GetCPUData()) {
+		for (const CPUData &cpuData : instance->cpuStats.GetCPUData()) {
 
 			double total = (double)(cpuData.totalPeriod == 0 ? 1 : cpuData.totalPeriod);
 			double percent = 0;
@@ -338,6 +336,42 @@ static void updateTextOverlay(const SwapchainData * const swapchain, TextOverlay
 	}
 
 	textOverlay->endTextUpdate();
+}
+
+static void StatsUpdateThread(void *ptr)
+{
+	InstanceData *instance = static_cast<InstanceData*>(ptr);
+	if (!instance)
+		return;
+
+	auto now = hrc::now();
+	auto last_update = now;
+
+	while (!instance->quitThread) {
+		now = hrc::now();
+		auto dur = std::chrono::duration_cast<ms>(now - last_update).count();
+
+		if (dur >= 500) {
+			last_update = now;
+			instance->cpuStats.UpdateCPUData();
+
+			scoped_lock l(global_lock);
+
+			for (auto& swapchain_data: g_swapchain_data) {
+				PresentStats& ps = swapchain_data.second.stats;
+
+				//printf("FPS: %0.f\n", ps.n_frames_since_update / (dur/1000.f));
+				ps.last_fps = ps.n_frames_since_update / (dur/1000.f);
+				ps.n_frames_since_update = 0;
+				updateTextOverlay(&swapchain_data.second);
+			}
+		} else {
+			std::this_thread::sleep_for(ms(1));
+		}
+	}
+	#ifndef NDEBUG
+		std::cerr << "Stats updating thread quit" << std::endl;
+	#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -455,7 +489,13 @@ VK_LAYER_EXPORT void VKAPI_CALL Overlay_DestroyInstance(VkInstance instance, con
 {
 	scoped_lock l(global_lock);
 	void *key = GetKey(instance);
-	g_instance_dispatch[key].vtable.DestroyInstance(instance, pAllocator);
+	InstanceData& id = g_instance_dispatch[key];
+
+	id.quitThread = true;
+	if (id.thread.joinable())
+		id.thread.join();
+
+	id.vtable.DestroyInstance(instance, pAllocator);
 	g_instance_dispatch.erase(key);
 }
 
@@ -542,6 +582,8 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateDevice(
 	char *env = getenv ("NUUDEL_AMDGPU_INDEX");
 	if (env && sscanf(env, "%d", &env_amdgpu_index) == 1)
 		GetDeviceData(*pDevice)->deviceStats = new AMDgpuStats(env_amdgpu_index);
+
+	instance->thread = std::thread(StatsUpdateThread, instance);
 	return VK_SUCCESS;
 }
 
@@ -720,7 +762,7 @@ static void SetupSwapchainData(struct SwapchainData *data,
 	data->overlay = new TextOverlay(device_data->vulkanDevice,
 		device_data->graphic_queue->queue, data->framebuffers,
 		data->format, data->width, data->height);
-	updateTextOverlay(data, data->overlay);
+	updateTextOverlay(data);
 }
 
 static void ShutdownSwapchainData(struct SwapchainData *data)
@@ -781,10 +823,6 @@ static void RenderSwapchainDisplay(struct SwapchainData *data,
 										  //1, &imb);   /* image memory barriers */
 
 	/* draw stuff */
-	/*static int throttle = 0;
-	if (!throttle)
-		updateTextOverlay(data, data->overlay);
-	throttle = (throttle+1) % 20;*/
 	data->overlay->updateCommandBuffers(image_index, imb);
 
 	if (data->fences[image_index]) {
@@ -835,14 +873,13 @@ VK_LAYER_EXPORT void VKAPI_CALL Overlay_DestroySwapchainKHR(
 	VkSwapchainKHR                              swapchain,
 	const VkAllocationCallbacks*                pAllocator)
 {
-	struct SwapchainData *swapchain_data = GetSwapchainData(swapchain);
-
-	ShutdownSwapchainData(swapchain_data);
-	swapchain_data->device->vtable.DestroySwapchainKHR(device, swapchain, pAllocator);
-
 	{
 		scoped_lock l(global_lock);
-		g_swapchain_data.erase(GetKey(device));
+		struct SwapchainData *swapchain_data = &g_swapchain_data[swapchain];
+		ShutdownSwapchainData(swapchain_data);
+		swapchain_data->device->vtable.DestroySwapchainKHR(device, swapchain, pAllocator);
+
+		g_swapchain_data.erase(swapchain);
 	}
 }
 
@@ -853,25 +890,11 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_QueuePresentKHR(
 	VkResult result = VK_SUCCESS;
 	QueueData *queue_data = GetQueueData(queue);
 
-	auto now = hrc::now();
-
 	for (uint32_t i = 0; i < pPresentInfo->swapchainCount; i++) {
 		VkSwapchainKHR swapchain = pPresentInfo->pSwapchains[i];
 
 		SwapchainData *swapchain_data = GetSwapchainData(swapchain);
-
 		PresentStats& ps = swapchain_data->stats;
-		auto dur = std::chrono::duration_cast<ms>(now - ps.last_fps_update).count();
-
-		if (dur >= 500) {
-			//printf("FPS: %0.f\n", ps.n_frames_since_update / (dur/1000.f));
-			ps.last_fps = ps.n_frames_since_update / (dur/1000.f);
-			ps.n_frames_since_update = 0;
-			ps.last_fps_update = now;
-			queue_data->device->instance->stats.UpdateCPUData();
-			updateTextOverlay(swapchain_data, swapchain_data->overlay);
-		}
-
 		ps.n_frames_since_update ++;
 
 		VkPresentInfoKHR present_info = *pPresentInfo;
@@ -925,8 +948,8 @@ VK_LAYER_EXPORT VkResult Overlay_CreateSwapchainKHR(
 		swapchain_data = &g_swapchain_data[*pSwapchain];
 		swapchain_data->swapchain = *pSwapchain;
 		swapchain_data->device = &g_device_dispatch[GetKey(device)];
+		SetupSwapchainData(swapchain_data, pCreateInfo);
 	}
-	SetupSwapchainData(swapchain_data, pCreateInfo);
 	return result;
 }
 

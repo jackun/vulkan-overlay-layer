@@ -66,10 +66,10 @@ class AMDgpuStats: public IGPUStats
 	int m_icore_temp = -1;
 };
 
-class Stats
+class CPUStats
 {
 public:
-	Stats();
+	CPUStats();
 	bool Init();
 	bool Updated()
 	{

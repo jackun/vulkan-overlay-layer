@@ -123,7 +123,7 @@ void TextOverlay::prepareResources()
 
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->AllocateCommandBuffers(vulkanDevice->logicalDevice, &cmdBufAllocateInfo, cmdBuffers.data()));
 
-	const DeviceData *device_data = GetDeviceData(vulkanDevice->logicalDevice);
+	const DeviceData *device_data = &g_device_dispatch[GetKey(vulkanDevice->logicalDevice)];
 	for (uint32_t i = 0; i < cmdBuffers.size(); ++i)
 		device_data->set_device_loader_data(vulkanDevice->logicalDevice, cmdBuffers[i]);
 

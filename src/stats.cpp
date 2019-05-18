@@ -24,12 +24,12 @@ static bool starts_with(const std::string& s,  const char *t){
 	return s.rfind(t, 0) == 0;
 }
 
-Stats::Stats()
+CPUStats::CPUStats()
 {
 	m_inited = Init();
 }
 
-bool Stats::Init()
+bool CPUStats::Init()
 {
 	std::string line;
 	std::ifstream file (PROCSTATFILE);
@@ -77,7 +77,7 @@ bool Stats::Init()
 }
 
 //TODO take sampling interval into account?
-bool Stats::UpdateCPUData()
+bool CPUStats::UpdateCPUData()
 {
 	unsigned long long int usertime, nicetime, systemtime, idletime;
 	unsigned long long int ioWait, irq, softIrq, steal, guest, guestnice;

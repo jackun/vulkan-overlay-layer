@@ -60,7 +60,7 @@ vklayer_mesa_overlay = shared_library(
   c_args : [c_vis_args, no_override_init_args],
   cpp_args : [cpp_vis_args],
   dependencies : [
-    dep_dl
+    dep_dl, dependency('threads')
   ],
   include_directories : [
     inc_common

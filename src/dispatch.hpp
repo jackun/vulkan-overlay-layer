@@ -1,6 +1,7 @@
 #pragma once
 #include <map>
 #include <vector>
+#include <thread>
 #include "stats.hpp"
 
 // generated from vk.xml
@@ -19,7 +20,9 @@ struct InstanceData {
 	VkInstance instance;
 	PFN_vkSetInstanceLoaderData set_instance_loader_data;
 	std::vector<VkExtensionProperties> exts;
-	Stats stats;
+	CPUStats cpuStats;
+	bool quitThread = false;
+	std::thread thread;
 
 	bool extensionSupported(const char* extensionName)
 	{
