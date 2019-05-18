@@ -2,6 +2,7 @@
 #include "vk_dispatch_table_helper.h"
 
 #include <vector>
+#include <mutex>
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -30,12 +31,14 @@ private:
 	// TextOverlay gets recreated when swpachain resizes so take these as values
 	uint32_t frameBufferWidth;
 	uint32_t frameBufferHeight;
+	int bufferIndex = 0, renderIndex = 0;
+	std::mutex biMutex;
 
 	VkSampler sampler;
 	VkImage image;
 	VkImageView view;
-	VkBuffer buffer;
-	VkDeviceMemory memory;
+	VkBuffer buffer[2];
+	VkDeviceMemory memory[2];
 	VkDeviceMemory imageMemory;
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSetLayout descriptorSetLayout;

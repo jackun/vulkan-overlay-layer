@@ -82,8 +82,10 @@ TextOverlay::~TextOverlay()
 	vulkanDevice->getDispatch()->DestroySampler(vulkanDevice->logicalDevice, sampler, nullptr);
 	vulkanDevice->getDispatch()->DestroyImage(vulkanDevice->logicalDevice, image, nullptr);
 	vulkanDevice->getDispatch()->DestroyImageView(vulkanDevice->logicalDevice, view, nullptr);
-	vulkanDevice->getDispatch()->DestroyBuffer(vulkanDevice->logicalDevice, buffer, nullptr);
-	vulkanDevice->getDispatch()->FreeMemory(vulkanDevice->logicalDevice, memory, nullptr);
+	vulkanDevice->getDispatch()->DestroyBuffer(vulkanDevice->logicalDevice, buffer[0], nullptr);
+	vulkanDevice->getDispatch()->DestroyBuffer(vulkanDevice->logicalDevice, buffer[1], nullptr);
+	vulkanDevice->getDispatch()->FreeMemory(vulkanDevice->logicalDevice, memory[0], nullptr);
+	vulkanDevice->getDispatch()->FreeMemory(vulkanDevice->logicalDevice, memory[1], nullptr);
 	vulkanDevice->getDispatch()->FreeMemory(vulkanDevice->logicalDevice, imageMemory, nullptr);
 	vulkanDevice->getDispatch()->DestroyDescriptorSetLayout(vulkanDevice->logicalDevice, descriptorSetLayout, nullptr);
 	vulkanDevice->getDispatch()->DestroyDescriptorPool(vulkanDevice->logicalDevice, descriptorPool, nullptr);
@@ -129,17 +131,21 @@ void TextOverlay::prepareResources()
 	VkDeviceSize bufferSize = TEXTOVERLAY_MAX_CHAR_COUNT * sizeof(glm::vec4);
 
 	VkBufferCreateInfo bufferInfo = vks::initializers::bufferCreateInfo(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, bufferSize);
-	VK_CHECK_RESULT(vulkanDevice->getDispatch()->CreateBuffer(vulkanDevice->logicalDevice, &bufferInfo, nullptr, &buffer));
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->CreateBuffer(vulkanDevice->logicalDevice, &bufferInfo, nullptr, &buffer[0]));
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->CreateBuffer(vulkanDevice->logicalDevice, &bufferInfo, nullptr, &buffer[1]));
 
 	VkMemoryRequirements memReqs;
 	VkMemoryAllocateInfo allocInfo = vks::initializers::memoryAllocateInfo();
 
-	vulkanDevice->getDispatch()->GetBufferMemoryRequirements(vulkanDevice->logicalDevice, buffer, &memReqs);
+	vulkanDevice->getDispatch()->GetBufferMemoryRequirements(vulkanDevice->logicalDevice, buffer[0], &memReqs);
 	allocInfo.allocationSize = memReqs.size;
 	allocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-	VK_CHECK_RESULT(vulkanDevice->getDispatch()->AllocateMemory(vulkanDevice->logicalDevice, &allocInfo, nullptr, &memory));
-	VK_CHECK_RESULT(vulkanDevice->getDispatch()->BindBufferMemory(vulkanDevice->logicalDevice, buffer, memory, 0));
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->AllocateMemory(vulkanDevice->logicalDevice, &allocInfo, nullptr, &memory[0]));
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->BindBufferMemory(vulkanDevice->logicalDevice, buffer[0], memory[0], 0));
+
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->AllocateMemory(vulkanDevice->logicalDevice, &allocInfo, nullptr, &memory[1]));
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->BindBufferMemory(vulkanDevice->logicalDevice, buffer[1], memory[1], 0));
 
 	// Font texture
 	VkImageCreateInfo imageInfo = vks::initializers::imageCreateInfo();
@@ -478,7 +484,7 @@ void TextOverlay::prepareRenderPass()
 // Map buffer 
 void TextOverlay::beginTextUpdate()
 {
-	VK_CHECK_RESULT(vulkanDevice->getDispatch()->MapMemory(vulkanDevice->logicalDevice, memory, 0, VK_WHOLE_SIZE, 0, (void **)&mapped));
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->MapMemory(vulkanDevice->logicalDevice, memory[bufferIndex], 0, VK_WHOLE_SIZE, 0, (void **)&mapped));
 	numLetters = 0;
 }
 
@@ -630,14 +636,18 @@ void TextOverlay::addText(std::string text, float x, float y, float scale, TextA
 // Unmap buffer and update command buffers
 void TextOverlay::endTextUpdate()
 {
-	vulkanDevice->getDispatch()->UnmapMemory(vulkanDevice->logicalDevice, memory);
+	vulkanDevice->getDispatch()->UnmapMemory(vulkanDevice->logicalDevice, memory[bufferIndex]);
 	mapped = nullptr;
-	//updateCommandBuffers();
+
+	std::lock_guard<std::mutex> l(biMutex);
+	renderIndex = bufferIndex;
+	bufferIndex = 1 - renderIndex;
 }
 
 // Needs to be called by the application
 void TextOverlay::updateCommandBuffers(uint32_t i, VkImageMemoryBarrier imb)
 {
+	std::lock_guard<std::mutex> l(biMutex);
 	VkCommandBufferBeginInfo cmdBufInfo = vks::initializers::commandBufferBeginInfo();
 
 	VkClearValue clearValues[2];
@@ -676,8 +686,8 @@ void TextOverlay::updateCommandBuffers(uint32_t i, VkImageMemoryBarrier imb)
 		vulkanDevice->getDispatch()->CmdBindDescriptorSets(cmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
 
 		VkDeviceSize offsets = 0;
-		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 0, 1, &buffer, &offsets);
-		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 1, 1, &buffer, &offsets);
+		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 0, 1, &buffer[renderIndex], &offsets);
+		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 1, 1, &buffer[renderIndex], &offsets);
 
 		vulkanDevice->getDispatch()->CmdPushConstants(cmdBuffers[i], pipelineLayout,
 			VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 0, sizeof(float) * 4, fontColor);
