@@ -214,33 +214,47 @@ bool AMDgpuStats::Init()
 
 	while((dp = readdir(dirp)) != NULL)
 	{
-		static const char * const sensors[] = { "freq", "temp" };
-		for (int i=0; i<2; i++)
+		static const char * const sensors[] = { "freq", "temp", "fan" };
+		for (int i=0; i<3; i++)
 		{
 			if (starts_with(dp->d_name, sensors[i])) {
-				char *n = dp->d_name + strlen(dp->d_name) - 5; //label
-				if (strcmp(n, "label"))
-					continue;
+				switch(i) {
+					case 0:
+					case 1:
+					{
+						char *n = dp->d_name + strlen(dp->d_name) - 5; //label
+						if (strcmp(n, "label"))
+							continue;
 
-				#ifndef NDEBUG
-				std::cout << "hwmon: " << dp->d_name << std::endl;
-				#endif
+						#ifndef NDEBUG
+						std::cout << "hwmon: " << dp->d_name << std::endl;
+						#endif
 
-				str.clear(); str.str("");
-				str << "/sys/class/hwmon/hwmon" << m_index << "/" << dp->d_name;
+						str.clear(); str.str("");
+						str << "/sys/class/hwmon/hwmon" << m_index << "/" << dp->d_name;
 
-				std::ifstream file(str.str());
-				if (file.is_open() && std::getline(file, line) 
-					&& sscanf(dp->d_name + 4, "%d", &idx)) //FIXME
-				{
-					if (line == "sclk")
-						m_isclk = idx;
-					else if (line == "mclk")
-						m_imclk = idx;
-					else if (i == 1 && line == "edge") //TODO polaris only has 'edge'? vega+ adds 'junction'
-						m_icore_temp = idx;
-					else if (i == 1 && line == "mem")
-						m_imem_temp = idx;
+						std::ifstream file(str.str());
+						if (file.is_open() && std::getline(file, line)
+							&& sscanf(dp->d_name + 4, "%d", &idx)) //FIXME
+						{
+							if (line == "sclk")
+								m_isclk = idx;
+							else if (line == "mclk")
+								m_imclk = idx;
+							else if (i == 1 && line == "edge") //TODO polaris only has 'edge'? vega+ adds 'junction'
+								m_icore_temp = idx;
+							else if (i == 1 && line == "mem")
+								m_imem_temp = idx;
+						}
+					}
+					break;
+					case 2:
+					{
+						if (m_ifan < 0 && sscanf(dp->d_name + 3, "%d", &idx) == 1) {
+							m_ifan = idx;
+						}
+					}
+					break;
 				}
 			}
 		}
@@ -301,6 +315,20 @@ int AMDgpuStats::getMemTemp()
 		std::getline(file, line);
 		if (sscanf(line.c_str(), "%llu", &value) == 1)
 			return value / 1000;
+		return -1;
+	}
+	return -1;
+}
+
+int AMDgpuStats::getFanSpeed()
+{
+	std::string line;
+	unsigned long long value = 0;
+	std::ifstream file(getInputPath(m_index, "fan", m_ifan));
+	if (file.is_open()) {
+		std::getline(file, line);
+		if (sscanf(line.c_str(), "%llu", &value) == 1)
+			return value;
 		return -1;
 	}
 	return -1;

@@ -128,7 +128,7 @@ void TextOverlay::prepareResources()
 		device_data->set_device_loader_data(vulkanDevice->logicalDevice, cmdBuffers[i]);
 
 	// Vertex buffer
-	VkDeviceSize bufferSize = TEXTOVERLAY_MAX_CHAR_COUNT * sizeof(glm::vec4);
+	VkDeviceSize bufferSize = TEXTOVERLAY_MAX_CHAR_COUNT * sizeof(Vertex);
 
 	VkBufferCreateInfo bufferInfo = vks::initializers::bufferCreateInfo(VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, bufferSize);
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->CreateBuffer(vulkanDevice->logicalDevice, &bufferInfo, nullptr, &buffer[0]));
@@ -272,7 +272,7 @@ void TextOverlay::prepareResources()
 	VkSamplerCreateInfo samplerInfo = vks::initializers::samplerCreateInfo();
 	samplerInfo.magFilter = VK_FILTER_LINEAR;
 	samplerInfo.minFilter = VK_FILTER_LINEAR;
-	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;//VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
 	samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;//VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;//VK_SAMPLER_ADDRESS_MODE_REPEAT;
 	samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;//VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -368,13 +368,15 @@ void TextOverlay::preparePipeline()
 	std::vector<VkDynamicState> dynamicStateEnables = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
 	VkPipelineDynamicStateCreateInfo dynamicState = vks::initializers::pipelineDynamicStateCreateInfo(dynamicStateEnables);
 
-	std::array<VkVertexInputBindingDescription, 2> vertexInputBindings = {
-		vks::initializers::vertexInputBindingDescription(0, sizeof(glm::vec4), VK_VERTEX_INPUT_RATE_VERTEX),
-		vks::initializers::vertexInputBindingDescription(1, sizeof(glm::vec4), VK_VERTEX_INPUT_RATE_VERTEX),
+	std::array<VkVertexInputBindingDescription, 3> vertexInputBindings = {
+		vks::initializers::vertexInputBindingDescription(0, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX),
+		vks::initializers::vertexInputBindingDescription(1, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX),
+		vks::initializers::vertexInputBindingDescription(2, sizeof(Vertex), VK_VERTEX_INPUT_RATE_VERTEX),
 	};
-	std::array<VkVertexInputAttributeDescription, 2> vertexInputAttributes = {
+	std::array<VkVertexInputAttributeDescription, 3> vertexInputAttributes = {
 		vks::initializers::vertexInputAttributeDescription(0, 0, VK_FORMAT_R32G32_SFLOAT, 0),					// Location 0: Position
-		vks::initializers::vertexInputAttributeDescription(1, 1, VK_FORMAT_R32G32_SFLOAT, sizeof(glm::vec2)),	// Location 1: UV
+		vks::initializers::vertexInputAttributeDescription(1, 1, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)),	// Location 1: UV
+		vks::initializers::vertexInputAttributeDescription(2, 2, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)),	// Location 2: Color
 	};
 
 	VkPipelineVertexInputStateCreateInfo vertexInputState = vks::initializers::pipelineVertexInputStateCreateInfo();
@@ -601,28 +603,40 @@ void TextOverlay::addText(std::string text, float x, float y, float scale, TextA
 
 		stb_fontchar *charData = &stbFontData[(uint32_t)(letter & 0xFF) - firstChar];
 
-		mapped->x = (x + (float)charData->x0 * charW * scale);
-		mapped->y = (y + (float)charData->y0 * charH * scale);
-		mapped->z = charData->s0;
-		mapped->w = charData->t0;
+		mapped->pos.x = (x + (float)charData->x0 * charW * scale);// - charW;
+		mapped->pos.y = (y + (float)charData->y0 * charH * scale);// - charH;
+		mapped->uv.x = charData->s0;
+		mapped->uv.y = charData->t0;
+		mapped->color.x = fontColor[0];
+		mapped->color.y = fontColor[1];
+		mapped->color.z = fontColor[2];
 		mapped++;
 
-		mapped->x = (x + (float)charData->x1 * charW * scale);
-		mapped->y = (y + (float)charData->y0 * charH * scale);
-		mapped->z = charData->s1;
-		mapped->w = charData->t0;
+		mapped->pos.x = (x + (float)charData->x1 * charW * scale);// + charW;
+		mapped->pos.y = (y + (float)charData->y0 * charH * scale);// - charH;
+		mapped->uv.x = charData->s1;
+		mapped->uv.y = charData->t0;
+		mapped->color.x = fontColor[0];
+		mapped->color.y = fontColor[1];
+		mapped->color.z = fontColor[2];
 		mapped++;
 
-		mapped->x = (x + (float)charData->x0 * charW * scale);
-		mapped->y = (y + (float)charData->y1 * charH * scale);
-		mapped->z = charData->s0;
-		mapped->w = charData->t1;
+		mapped->pos.x = (x + (float)charData->x0 * charW * scale);// - charW;
+		mapped->pos.y = (y + (float)charData->y1 * charH * scale);// + charH;
+		mapped->uv.x = charData->s0;
+		mapped->uv.y = charData->t1;
+		mapped->color.x = fontColor[0];
+		mapped->color.y = fontColor[1];
+		mapped->color.z = fontColor[2];
 		mapped++;
 
-		mapped->x = (x + (float)charData->x1 * charW * scale);
-		mapped->y = (y + (float)charData->y1 * charH * scale);
-		mapped->z = charData->s1;
-		mapped->w = charData->t1;
+		mapped->pos.x = (x + (float)charData->x1 * charW * scale);// + charW;
+		mapped->pos.y = (y + (float)charData->y1 * charH * scale);// + charH;
+		mapped->uv.x = charData->s1;
+		mapped->uv.y = charData->t1;
+		mapped->color.x = fontColor[0];
+		mapped->color.y = fontColor[1];
+		mapped->color.z = fontColor[2];
 		mapped++;
 
 		x += charData->advance * charW * scale;
@@ -685,9 +699,10 @@ void TextOverlay::updateCommandBuffers(uint32_t i, VkImageMemoryBarrier imb)
 		vulkanDevice->getDispatch()->CmdBindPipeline(cmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 		vulkanDevice->getDispatch()->CmdBindDescriptorSets(cmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, NULL);
 
-		VkDeviceSize offsets = 0;
-		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 0, 1, &buffer[renderIndex], &offsets);
-		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 1, 1, &buffer[renderIndex], &offsets);
+		VkDeviceSize offsets[] = { 0 };
+		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 0, 1, &buffer[renderIndex], offsets);
+		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 1, 1, &buffer[renderIndex], offsets);
+		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 2, 1, &buffer[renderIndex], offsets);
 
 		vulkanDevice->getDispatch()->CmdPushConstants(cmdBuffers[i], pipelineLayout,
 			VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 0, sizeof(float) * 4, fontColor);

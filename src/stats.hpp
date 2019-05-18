@@ -43,7 +43,7 @@ class IGPUStats
 	// these probably need to return a map with label/value
 	virtual int getCoreTemp() { return -1; }
 	virtual int getMemTemp() { return -1; }
-
+	virtual int getFanSpeed() { return -1; }
 };
 
 class AMDgpuStats: public IGPUStats
@@ -56,6 +56,7 @@ class AMDgpuStats: public IGPUStats
 	virtual int getGPUUsage();
 	virtual int getCoreTemp();
 	virtual int getMemTemp();
+	virtual int getFanSpeed();
 
 	private:
 	bool Init();
@@ -64,6 +65,7 @@ class AMDgpuStats: public IGPUStats
 	int m_isclk = -1;
 	int m_imem_temp = -1;
 	int m_icore_temp = -1;
+	int m_ifan = -1;
 };
 
 class CPUStats

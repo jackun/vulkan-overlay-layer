@@ -15,6 +15,13 @@
 
 #include "../external/stb/stb_font_consolas_bold_24_latin1.inl"
 
+struct Vertex
+{
+	glm::vec2 pos;
+	glm::vec2 uv;
+	glm::vec3 color;
+};
+
 /*
 	Mostly self-contained text overlay class
 */
@@ -53,7 +60,7 @@ private:
 	std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
 	// Pointer to mapped vertex buffer
-	glm::vec4 *mapped = nullptr;
+	Vertex *mapped = nullptr;
 
 	stb_fontchar stbFontData[STB_FONT_consolas_bold_24_latin1_NUM_CHARS];
 	uint32_t numLetters;

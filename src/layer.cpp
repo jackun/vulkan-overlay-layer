@@ -231,6 +231,15 @@ static void DeviceMapQueues(struct DeviceData *data,
 	}
 }
 
+static float AddStatText(TextOverlay *textOverlay, const std::string& line, float x, float y, float scale)
+{
+	if (line.size()) {
+		textOverlay->addText(line, x, y, scale);
+		return 20.f * scale;
+	}
+	return 0.f;
+}
+
 // Update the text buffer displayed by the text overlay
 static void updateTextOverlay(const SwapchainData * const swapchain)
 {
@@ -238,62 +247,61 @@ static void updateTextOverlay(const SwapchainData * const swapchain)
 	const InstanceData * const instance = device_data->instance;
 	TextOverlay *textOverlay = swapchain->overlay;
 
+	float scaling = .9f, scaling_cpu = .9f;
+	float tmp_x = overlay_x, tmp_y = overlay_y;
+	std::stringstream ss;
+
 	textOverlay->beginTextUpdate();
 
-	//TODO throttle
 	std::time_t t = std::time(nullptr);
 	std::stringstream time;
 	time << std::put_time(std::localtime(&t), "%T");
 
-	textOverlay->addText(time.str(), overlay_x, overlay_y);
-
-	/* 24.f stb font size */
-	float spacing_y = 20.f;
-	float scaling_cpu = .9f;
-	float tmp_x = overlay_x, tmp_y = overlay_y;
-	std::stringstream ss;
+	tmp_y += AddStatText(textOverlay, time.str(), overlay_x, overlay_y, 1.0f);
 
 	ss << "FPS: " << std::fixed << std::setprecision(0) << swapchain->stats.last_fps;
-	tmp_y += spacing_y;
-	textOverlay->addText(ss.str(), tmp_x, tmp_y, 0.9f);
+	tmp_y += AddStatText(textOverlay, ss.str(), tmp_x, tmp_y, 1.0f);
 
 	double avg_cpus_percent = 0;
 	if (instance /*&& instance->stats.Updated()*/) {
 
 		if (device_data->deviceStats) {
-			int value = -1, value2 = -1;
-
-			value = device_data->deviceStats->getCoreClock();
-			value2 = device_data->deviceStats->getCoreTemp();
-			ss.str(""); ss.clear(); 
-			ss << "Core: ";
-			if (value > -1)
-				ss << value << "MHz ";
-			if (value2 > -1)
-				ss << value2 << "°C";
-			if (value > -1 || value2 > -1) {
-				tmp_y += spacing_y;
-				textOverlay->addText(ss.str(), tmp_x, tmp_y, 0.9f);
+			int value = -1;
+			// Core
+			{
+				value = device_data->deviceStats->getCoreClock();
+				ss.str(""); ss.clear();
+				ss << "Core: ";
+				if (value > -1)
+					ss << value << " MHz ";
+				value = device_data->deviceStats->getCoreTemp();
+				if (value > -1)
+					ss << value << "°C ";
+				value = device_data->deviceStats->getFanSpeed();
+				if (value > -1)
+					ss << value << " RPM ";
+				tmp_y += AddStatText(textOverlay, ss.str(), tmp_x, tmp_y, scaling);
 			}
+			// Mem
+			{
+				ss.str(""); ss.clear();
+				ss << "Mem:  ";
+				value = device_data->deviceStats->getMemClock();
+				if (value > -1)
+					ss << value << " MHz ";
 
-			ss.str(""); ss.clear(); 
-			ss << "Mem:  ";
-			value = device_data->deviceStats->getMemClock();
-			value2 = device_data->deviceStats->getMemTemp();
-			if (value > -1)
-				ss << value << "MHz ";
-			if (value2 > -1)
-				ss << value2 << "°C";
-			if (value > -1 || value2 > -1) {
-				tmp_y += spacing_y;
-				textOverlay->addText(ss.str(), tmp_x, tmp_y, 0.9f);
+				value = device_data->deviceStats->getMemTemp();
+				if (value > -1)
+					ss << value << "°C ";
+				tmp_y += AddStatText(textOverlay, ss.str(), tmp_x, tmp_y, scaling);
 			}
-
-			value = device_data->deviceStats->getGPUUsage();
-			if (value > -1) {
-				ss.str(""); ss.clear(); ss << "Busy: " << value << "%";
-				tmp_y += spacing_y;
-				textOverlay->addText(ss.str(), tmp_x, tmp_y, 0.9f);
+			// Busy
+			{
+				value = device_data->deviceStats->getGPUUsage();
+				if (value > -1) {
+					ss.str(""); ss.clear(); ss << "Busy: " << value << "% ";
+					tmp_y += AddStatText(textOverlay, ss.str(), tmp_x, tmp_y, scaling);
+				}
 			}
 		}
 
@@ -316,8 +324,7 @@ static void updateTextOverlay(const SwapchainData * const swapchain)
 
 			if (!avg_cpus) {
 				ss.str(""); ss.clear(); ss << "CPU" << cpuid << ": " << std::fixed << std::setprecision(0) << percent << "%";
-				tmp_y += spacing_y * scaling_cpu;
-				textOverlay->addText(ss.str(), tmp_x, tmp_y, scaling_cpu);
+				tmp_y += AddStatText(textOverlay, ss.str(), tmp_x, tmp_y, scaling_cpu);
 			} else {
 				avg_cpus_percent += percent;
 			}
@@ -326,8 +333,7 @@ static void updateTextOverlay(const SwapchainData * const swapchain)
 
 		if (avg_cpus) {
 			ss.str(""); ss.clear(); ss << "CPU: " << std::fixed << std::setprecision(0) << (avg_cpus_percent / cpuid) << "%";
-			tmp_y += spacing_y * scaling_cpu;
-			textOverlay->addText(ss.str(), tmp_x, tmp_y, scaling_cpu);
+			tmp_y += AddStatText(textOverlay, ss.str(), tmp_x, tmp_y, scaling_cpu);
 			cpuid++;
 		}
 

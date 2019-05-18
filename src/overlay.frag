@@ -1,6 +1,7 @@
 #version 450 core
 
 layout (location = 0) in vec2 inUV;
+layout (location = 1) in vec3 inCol;
 
 layout (binding = 0) uniform sampler2D s_font;
 
@@ -54,8 +55,8 @@ vec4 shadowedText(void)
 vec4 plainText(void)
 {
 	float value = texture(s_font, inUV).r;
-	vec4 shadow = vec4(vec3(0.3), texture(s_font, inUV + shadowOffset).r);
-	return mix(vec4(color.rgb, value * color.a), shadow, 1.0-value);
+	vec4 shadow = vec4(vec3(1), texture(s_font, inUV + shadowOffset).r);
+	return mix(vec4(inCol.rgb, value*color.a), shadow, 1-value);
 }
 
 void main(void)
