@@ -515,42 +515,71 @@ void TextOverlay::addText(std::string text, float x, float y, float scale, TextA
 	float textWidth = 0;
 	uint8_t prev_letter = 0;
 	bool skip_triplet = false;
+	bool skip_quartet = false;
+	std::vector<uint8_t> fifo;
+	fifo.push_back(0);
+
 	for (char letter : text)
 	{
 		//printf("%hhx %c\n", letter, letter);
+
 		if (skip_triplet) {
 			skip_triplet = false;
-			char tmp[] = { (char)0xE0, (char)prev_letter, letter, 0 };
-			fprintf(stderr, "[FIXME] %s: cannot map character to latin1: '%s'\n", __func__, tmp);
+			skip_quartet = false;
+			fifo.push_back(letter);
+			fifo.push_back(0);
+			fprintf(stderr, "[FIXME] %s: cannot map character to latin1: '%s'\n", __func__, fifo.data());
+			fifo.clear();
+			fifo.push_back(0);
+			//continue;
+			letter = '?'; // >= 0x7F seems to map to the question-mark-in-a-box
+		}
+
+		if (skip_quartet) {
+			skip_triplet = true;
+			fifo.push_back(letter);
 			continue;
 		}
 
-		if (prev_letter == 0xE0) {
+		if (fifo.back() >= 0xF0) {
+			skip_quartet = true;
+			fifo.push_back(letter);
+			continue;
+		}
+
+		if (fifo.back() >= 0xE0) {
 			skip_triplet = true;
-			prev_letter = letter;
+			fifo.push_back(letter);
 			continue;
 		}
 
 		if ((uint8_t)letter >= 0xC2) {
-			prev_letter = letter;
+			fifo.back() = letter;
 			continue;
 		}
 
-		if (prev_letter > 0xC3) {
-			char tmp[] = { (char)prev_letter, letter, 0 };
-			fprintf(stderr, "[FIXME] %s: cannot map character to latin1: '%s'\n", __func__, tmp);
-			continue;
+		if (fifo.back() > 0xC3) {
+			fifo.push_back(letter);
+			fifo.push_back(0);
+			fprintf(stderr, "[FIXME] %s: cannot map character to latin1: '%s'\n", __func__, fifo.data());
+			fifo.clear();
+			fifo.push_back(0);
+			//continue;
+			letter = '?';
 		}
 
 		// utf-8 to latin1 ext
-		if (prev_letter == 0xC2) {
+		if (fifo.back() == 0xC2) {
 			//nuffin
 		}
-		else if (prev_letter == 0xC3)
+		else if (fifo.back() == 0xC3) {
 			letter = letter + 64;
-		else if(prev_letter >= 0xC2 || (uint32_t)(letter & 0xFF) - firstChar >= STB_FONT_consolas_bold_24_latin1_NUM_CHARS)
-			continue;
-		prev_letter = letter;
+		}
+		else if(fifo.back() >= 0xC2 || (uint32_t)(letter & 0xFF) - firstChar >= STB_FONT_consolas_bold_24_latin1_NUM_CHARS) {
+			letter = '?';
+			//continue;
+		}
+		fifo.back() = 0;
 
 		stb_fontchar *charData = &stbFontData[(uint32_t)(letter & 0xFF) - firstChar];
 		textWidth += charData->advance * charW;
@@ -569,6 +598,7 @@ void TextOverlay::addText(std::string text, float x, float y, float scale, TextA
 	}
 
 	skip_triplet = false;
+	skip_quartet = false;
 	prev_letter = 0;
 
 	// Generate a uv mapped quad per char in the new text
@@ -576,10 +606,23 @@ void TextOverlay::addText(std::string text, float x, float y, float scale, TextA
 	{
 		if (skip_triplet) {
 			skip_triplet = false;
+			skip_quartet = false;
+			//continue;
+			letter = '?';
+		}
+
+		if (skip_quartet) {
+			skip_triplet = true;
 			continue;
 		}
 
-		if (prev_letter == 0xE0) {
+		if (prev_letter >= 0xF0) {
+			skip_quartet = true;
+			prev_letter = 0;
+			continue;
+		}
+
+		if (prev_letter >= 0xE0) {
 			skip_triplet = true;
 			prev_letter = 0;
 			continue;
@@ -590,6 +633,12 @@ void TextOverlay::addText(std::string text, float x, float y, float scale, TextA
 			continue;
 		}
 
+		if (prev_letter > 0xC3) {
+			prev_letter = 0;
+			//continue;
+			letter = '?';
+		}
+
 		// utf-8 to latin1 ext
 		if (prev_letter == 0xC2){
 			// nuffin
@@ -597,8 +646,10 @@ void TextOverlay::addText(std::string text, float x, float y, float scale, TextA
 		else if (prev_letter == 0xC3){
 			letter = letter + 64;
 		}
-		else if (prev_letter >= 0xC2 || (uint32_t)(letter & 0xFF) - firstChar >= STB_FONT_consolas_bold_24_latin1_NUM_CHARS)
-			continue;
+		else if (prev_letter >= 0xC2 || (uint32_t)(letter & 0xFF) - firstChar >= STB_FONT_consolas_bold_24_latin1_NUM_CHARS) {
+			//continue;
+			letter = '?';
+		}
 		prev_letter = 0;
 
 		stb_fontchar *charData = &stbFontData[(uint32_t)(letter & 0xFF) - firstChar];
