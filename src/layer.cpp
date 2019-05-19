@@ -952,9 +952,6 @@ static void RenderSwapchainDisplay(struct SwapchainData *data,
 										  //0, nullptr, /* buffer memory barriers */
 										  //1, &imb);   /* image memory barriers */
 
-	/* draw stuff */
-	data->overlay->updateCommandBuffers(image_index, imb);
-
 	if (data->fences[image_index]) {
 		if (device_data->vtable.GetFenceStatus(device_data->device, data->fences[image_index]) != VK_SUCCESS)
 			VK_CHECK_RESULT(device_data->vtable.WaitForFences(device_data->device, 1, &data->fences[image_index], VK_TRUE, UINT64_MAX));
@@ -970,17 +967,16 @@ static void RenderSwapchainDisplay(struct SwapchainData *data,
 			&data->fences[image_index]));
 	}
 
-	if (data->submission_semaphore[image_index]) {
-		device_data->vtable.DestroySemaphore(device_data->device,
-											data->submission_semaphore[image_index],
-											NULL);
-   }
+	/* draw stuff */
+	data->overlay->updateCommandBuffers(image_index, imb);
 
-	/* Submission semaphore */
-	VkSemaphoreCreateInfo semaphore_info = {};
-	semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-	VK_CHECK_RESULT(device_data->vtable.CreateSemaphore(device_data->device, &semaphore_info,
+	if (!data->submission_semaphore[image_index]) {
+		/* Submission semaphore */
+		VkSemaphoreCreateInfo semaphore_info = {};
+		semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		VK_CHECK_RESULT(device_data->vtable.CreateSemaphore(device_data->device, &semaphore_info,
 												NULL, &data->submission_semaphore[image_index]));
+	}
 
 	VkSubmitInfo submit_info = {};
 	VkPipelineStageFlags stage_wait = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;

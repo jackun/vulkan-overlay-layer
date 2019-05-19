@@ -730,5 +730,5 @@ void TextOverlay::submit(VkQueue queue, uint32_t bufferindex, VkSubmitInfo submi
 	submitInfo.pCommandBuffers = &cmdBuffers[bufferindex];
 
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->QueueSubmit(queue, 1, &submitInfo, fence));
-	VK_CHECK_RESULT(vulkanDevice->getDispatch()->WaitForFences(vulkanDevice->logicalDevice, 1, &fence, VK_TRUE, UINT64_MAX));
+	//VK_CHECK_RESULT(vulkanDevice->getDispatch()->WaitForFences(vulkanDevice->logicalDevice, 1, &fence, VK_TRUE, UINT64_MAX));
 }
