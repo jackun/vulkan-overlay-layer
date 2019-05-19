@@ -584,10 +584,11 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateInstance(
 	dispatchTable.EnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties) gpa(*pInstance, "vkEnumerateInstanceExtensionProperties");
 
 	VkLayerInstanceCreateInfo *load_data_info = get_instance_chain_info(pCreateInfo, VK_LOADER_DATA_CALLBACK);
-	GetInstanceData(*pInstance)->set_instance_loader_data = load_data_info->u.pfnSetInstanceLoaderData;
 
-	GetInstanceData(*pInstance)->vtable = dispatchTable;
-	GetInstanceData(*pInstance)->instance = *pInstance;
+	InstanceData *instance_data = GetInstanceData(*pInstance);
+	instance_data->set_instance_loader_data = load_data_info->u.pfnSetInstanceLoaderData;
+	instance_data->vtable = dispatchTable;
+	instance_data->instance = *pInstance;
 
 	int env_pos_x, env_pos_y;
 	char* env = getenv ("NUUDEL_POS");
@@ -607,6 +608,7 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateInstance(
 		InitSocket(*GetInstanceData(*pInstance), env);
 	}
 
+	instance_data->cpu.thread = std::thread(StatsUpdateThread, instance_data);
 	return VK_SUCCESS;
 }
 
@@ -712,7 +714,6 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateDevice(
 	if (env && sscanf(env, "%d", &env_amdgpu_index) == 1)
 		GetDeviceData(*pDevice)->deviceStats = new AMDgpuStats(env_amdgpu_index);
 
-	instance->cpu.thread = std::thread(StatsUpdateThread, instance);
 	return VK_SUCCESS;
 }
 
