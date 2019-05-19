@@ -6,7 +6,6 @@
 #include <string.h>
 #include <cstdlib>
 
-#include <mutex>
 #include <chrono>
 #include <ctime>
 #include <sstream>
@@ -244,12 +243,17 @@ static float AddStatText(TextOverlay *textOverlay, const std::string& line, floa
 static void updateTextOverlay(const SwapchainData * const swapchain)
 {
 	const DeviceData * const device_data = swapchain->device;
-	const InstanceData * const instance = device_data->instance;
+	InstanceData * instance = device_data->instance;
 	TextOverlay *textOverlay = swapchain->overlay;
 
 	float scaling = .9f, scaling_cpu = .9f;
 	float tmp_x = overlay_x, tmp_y = overlay_y;
 	std::stringstream ss;
+
+#ifndef NDEBUG
+	if (!textOverlay)
+		return;
+#endif
 
 	textOverlay->beginTextUpdate();
 
@@ -337,6 +341,11 @@ static void updateTextOverlay(const SwapchainData * const swapchain)
 			cpuid++;
 		}
 
+		{
+			std::lock_guard l(instance->ss.mutex);
+			for (auto& line : instance->ss.lines)
+				tmp_y += AddStatText(textOverlay, line, tmp_x, tmp_y, scaling);
+		}
 		//textOverlay->addText("Some º text 1", 50.0f, 35.0f, TextOverlay::alignLeft);
 		//textOverlay->addText("Some text 2 þñ©öäüÕ", 50.0f, 65.0f, TextOverlay::alignLeft);
 	}
@@ -353,7 +362,7 @@ static void StatsUpdateThread(void *ptr)
 	auto now = hrc::now();
 	auto last_update = now;
 
-	while (!instance->quitThread) {
+	while (!instance->cpu.quit) {
 		now = hrc::now();
 		auto dur = std::chrono::duration_cast<ms>(now - last_update).count();
 
@@ -378,6 +387,111 @@ static void StatsUpdateThread(void *ptr)
 	#ifndef NDEBUG
 		std::cerr << "Stats updating thread quit" << std::endl;
 	#endif
+}
+
+static void SocketThread(void *ptr)
+{
+	int len = -1;
+	struct sockaddr_un from;
+	socklen_t fromlen = sizeof(from);
+	char buff[8192];
+
+	InstanceData *instance = static_cast<InstanceData*>(ptr);
+	if (!instance)
+		return;
+
+	auto& ss = instance->ss;
+	bool doClear= false;
+	std::stringstream sstr;
+
+	while (!ss.quit) {
+
+		len = recvfrom(ss.fd, buff, sizeof(buff), 0, (struct sockaddr *)&from, &fromlen);
+		if (len < 0 && errno == EAGAIN)
+			continue;
+		else if (len < 0)
+			break;
+
+#ifndef NDEBUG
+		std::cerr << "recvfrom: " << len << " " << buff << std::endl;
+#endif
+
+		{
+			std::lock_guard l(ss.mutex);
+			if (doClear || ss.lines.size() > 15) {
+				doClear = false;
+				ss.lines.clear();
+			}
+
+			for (int i=0; i< len; i++) {
+				if (buff[i] == '\0') {
+					doClear= true;
+					continue;
+				}
+				if (buff[i] == '\r')
+					continue;
+				if (buff[i] == '\n') {
+					ss.lines.push_back(sstr.str());
+					sstr.str(""); sstr.clear();
+				} else {
+					sstr << buff[i];
+				}
+			}
+
+			memset(buff, 0, sizeof(buff));
+		}
+	}
+
+	if (!ss.quit && len < 0)
+		perror("socket thread");
+
+	if (ss.fd > -1) {
+		close(ss.fd);
+	}
+}
+
+static void InitSocket(InstanceData& instance, const char * const sock_path)
+{
+	auto& ss = instance.ss;
+	ss.quit = false;
+	ss.fd = -1;
+
+	if (strlen(sock_path) >= sizeof(ss.addr.sun_path)) {
+		std::cerr << "Socket path too long" <<std::endl;
+		return;
+	}
+
+	if ((ss.fd = socket(PF_UNIX, SOCK_DGRAM, 0)) < 0) {
+		perror("socket");
+		goto error;
+	}
+
+	if (ss.fd > -1) {
+		memset(&ss.addr, 0, sizeof(ss.addr));
+		ss.addr.sun_family = AF_UNIX;
+		strncpy(ss.addr.sun_path, sock_path, sizeof(ss.addr.sun_path) - 1);
+		unlink(sock_path);
+		if (bind(ss.fd, (struct sockaddr *)&ss.addr, sizeof(ss.addr)) < 0) {
+			perror("bind");
+			goto error;
+		}
+	}
+
+	struct timeval tv;
+	tv.tv_sec = 0;
+	tv.tv_usec = 100000; //100ms
+	if (setsockopt(ss.fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+		perror("timeout");
+		goto error;
+	}
+
+	ss.thread = std::thread(SocketThread, &instance);
+
+	return;
+error:
+	if (ss.fd > -1) {
+		close(ss.fd);
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////
@@ -488,6 +602,11 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateInstance(
 		avg_cpus = !!env_avg_cpus;
 	}
 
+	env = getenv ("NUUDEL_SOCKET");
+	if (env) {
+		InitSocket(*GetInstanceData(*pInstance), env);
+	}
+
 	return VK_SUCCESS;
 }
 
@@ -497,9 +616,13 @@ VK_LAYER_EXPORT void VKAPI_CALL Overlay_DestroyInstance(VkInstance instance, con
 	void *key = GetKey(instance);
 	InstanceData& id = g_instance_dispatch[key];
 
-	id.quitThread = true;
-	if (id.thread.joinable())
-		id.thread.join();
+	id.cpu.quit = true;
+	if (id.cpu.thread.joinable())
+		id.cpu.thread.join();
+
+	id.ss.quit = true;
+	if (id.ss.thread.joinable())
+		id.ss.thread.join();
 
 	id.vtable.DestroyInstance(instance, pAllocator);
 	g_instance_dispatch.erase(key);
@@ -589,7 +712,7 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_CreateDevice(
 	if (env && sscanf(env, "%d", &env_amdgpu_index) == 1)
 		GetDeviceData(*pDevice)->deviceStats = new AMDgpuStats(env_amdgpu_index);
 
-	instance->thread = std::thread(StatsUpdateThread, instance);
+	instance->cpu.thread = std::thread(StatsUpdateThread, instance);
 	return VK_SUCCESS;
 }
 

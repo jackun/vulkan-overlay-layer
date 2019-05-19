@@ -2,6 +2,10 @@
 #include <map>
 #include <vector>
 #include <thread>
+#include <mutex>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
 #include "stats.hpp"
 
 // generated from vk.xml
@@ -21,8 +25,20 @@ struct InstanceData {
 	PFN_vkSetInstanceLoaderData set_instance_loader_data;
 	std::vector<VkExtensionProperties> exts;
 	CPUStats cpuStats;
-	bool quitThread = false;
-	std::thread thread;
+
+	struct {
+		bool quit = false;
+		std::thread thread;
+	} cpu;
+
+	struct {
+		int fd = -1;
+		struct sockaddr_un addr;
+		bool quit = false;
+		std::thread thread;
+		std::vector<std::string> lines;
+		std::mutex mutex;
+	} ss;
 
 	bool extensionSupported(const char* extensionName)
 	{
