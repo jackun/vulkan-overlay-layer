@@ -133,7 +133,7 @@ struct SwapchainData {
 	std::vector<VkImageView> image_views;
 	std::vector<VkFramebuffer> framebuffers;
 
-	VkRenderPass render_pass = nullptr;
+	VkRenderPass render_pass = 0;
 
 	std::vector<VkSemaphore> submission_semaphore;
 	std::vector<VkFence> fences;
@@ -783,11 +783,11 @@ static void ShutdownSwapchainData(struct SwapchainData *data)
 		device_data->vtable.DestroyFramebuffer(device_data->device, data->framebuffers[i], NULL);
 		if (data->submission_semaphore[i]) {
 			device_data->vtable.DestroySemaphore(device_data->device, data->submission_semaphore[i], NULL);
-			data->submission_semaphore[i] = nullptr;
+			data->submission_semaphore[i] = 0;
 		}
 		if (data->fences[i]) {
 			device_data->vtable.DestroyFence(device_data->device, data->fences[i], NULL);
-			data->fences[i] = nullptr;
+			data->fences[i] = 0;
 		}
 	}
 
@@ -881,11 +881,11 @@ VK_LAYER_EXPORT void VKAPI_CALL Overlay_DestroySwapchainKHR(
 {
 	{
 		scoped_lock l(global_lock);
-		struct SwapchainData *swapchain_data = &g_swapchain_data[swapchain];
+		struct SwapchainData *swapchain_data = &g_swapchain_data[(void*)swapchain];
 		ShutdownSwapchainData(swapchain_data);
 		swapchain_data->device->vtable.DestroySwapchainKHR(device, swapchain, pAllocator);
 
-		g_swapchain_data.erase(swapchain);
+		g_swapchain_data.erase((void*)swapchain);
 	}
 }
 
@@ -899,7 +899,7 @@ VK_LAYER_EXPORT VkResult VKAPI_CALL Overlay_QueuePresentKHR(
 	for (uint32_t i = 0; i < pPresentInfo->swapchainCount; i++) {
 		VkSwapchainKHR swapchain = pPresentInfo->pSwapchains[i];
 
-		SwapchainData *swapchain_data = GetSwapchainData(swapchain);
+		SwapchainData *swapchain_data = GetSwapchainData((void*)swapchain);
 		PresentStats& ps = swapchain_data->stats;
 		ps.n_frames_since_update ++;
 
@@ -951,7 +951,7 @@ VK_LAYER_EXPORT VkResult Overlay_CreateSwapchainKHR(
 		VkResult result = g_device_dispatch[GetKey(device)].vtable.CreateSwapchainKHR(device, pCreateInfo, pAllocator, pSwapchain);
 		if (result != VK_SUCCESS) return result;
 
-		swapchain_data = &g_swapchain_data[*pSwapchain];
+		swapchain_data = &g_swapchain_data[(void*)*pSwapchain];
 		swapchain_data->swapchain = *pSwapchain;
 		swapchain_data->device = &g_device_dispatch[GetKey(device)];
 		SetupSwapchainData(swapchain_data, pCreateInfo);
