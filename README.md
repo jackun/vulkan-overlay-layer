@@ -27,8 +27,8 @@ echo -ne 'Test line 1\nTest line 2\nTest line 3\n\0' | socat - unix-client:/tmp/
 ```
 
 ```
-echo -ne 'Test line 1\n' | socat - unix-client:/tmp/nuudel.socket
-echo -ne 'Test line 2\n' | socat - unix-client:/tmp/nuudel.socket
-echo -ne 'Test line 3\n' | socat - unix-client:/tmp/nuudel.socket
+echo Test line 1 | socat - unix-client:/tmp/nuudel.socket
+echo Test line 2 | socat - unix-client:/tmp/nuudel.socket
+echo Test line 3 | socat - unix-client:/tmp/nuudel.socket
 echo -ne '\0' | socat - unix-client:/tmp/nuudel.socket # set clear flag, new data clears old lines
 ```
