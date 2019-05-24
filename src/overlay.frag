@@ -7,7 +7,7 @@ layout (binding = 0) uniform sampler2D s_font;
 
 layout (location = 0) out vec4 outFragColor;
 
-layout(push_constant) uniform TextColor {
+layout (binding = 1) uniform TextColor {
 	vec4 color;
 };
 

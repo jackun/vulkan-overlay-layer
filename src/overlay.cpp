@@ -84,9 +84,11 @@ TextOverlay::~TextOverlay()
 	vulkanDevice->getDispatch()->DestroyImageView(vulkanDevice->logicalDevice, view, nullptr);
 	vulkanDevice->getDispatch()->DestroyBuffer(vulkanDevice->logicalDevice, buffer[0], nullptr);
 	vulkanDevice->getDispatch()->DestroyBuffer(vulkanDevice->logicalDevice, buffer[1], nullptr);
+	vulkanDevice->getDispatch()->DestroyBuffer(vulkanDevice->logicalDevice, uniformBuffer.buffer, nullptr);
 	vulkanDevice->getDispatch()->FreeMemory(vulkanDevice->logicalDevice, memory[0], nullptr);
 	vulkanDevice->getDispatch()->FreeMemory(vulkanDevice->logicalDevice, memory[1], nullptr);
 	vulkanDevice->getDispatch()->FreeMemory(vulkanDevice->logicalDevice, imageMemory, nullptr);
+	vulkanDevice->getDispatch()->FreeMemory(vulkanDevice->logicalDevice, uniformBuffer.memory, nullptr);
 	vulkanDevice->getDispatch()->DestroyDescriptorSetLayout(vulkanDevice->logicalDevice, descriptorSetLayout, nullptr);
 	vulkanDevice->getDispatch()->DestroyDescriptorPool(vulkanDevice->logicalDevice, descriptorPool, nullptr);
 	vulkanDevice->getDispatch()->DestroyPipelineLayout(vulkanDevice->logicalDevice, pipelineLayout, nullptr);
@@ -100,6 +102,7 @@ TextOverlay::~TextOverlay()
 // The text overlay uses separate resources for descriptors (pool, sets, layouts), pipelines and command buffers
 void TextOverlay::prepareResources()
 {
+	uint8_t *data;
 	const uint32_t fontWidth = STB_FONT_consolas_bold_24_latin1_BITMAP_WIDTH;
 	const uint32_t fontHeight = STB_FONT_consolas_bold_24_latin1_BITMAP_WIDTH;
 
@@ -146,6 +149,32 @@ void TextOverlay::prepareResources()
 
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->AllocateMemory(vulkanDevice->logicalDevice, &allocInfo, nullptr, &memory[1]));
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->BindBufferMemory(vulkanDevice->logicalDevice, buffer[1], memory[1], 0));
+
+	// Uniform buffer for color
+	bufferSize = sizeof(glm::vec4);
+	bufferInfo = vks::initializers::bufferCreateInfo(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, bufferSize);
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->CreateBuffer(vulkanDevice->logicalDevice, &bufferInfo, nullptr, &uniformBuffer.buffer));
+
+	allocInfo = vks::initializers::memoryAllocateInfo();
+	vulkanDevice->getDispatch()->GetBufferMemoryRequirements(vulkanDevice->logicalDevice, uniformBuffer.buffer, &memReqs);
+	allocInfo.allocationSize = memReqs.size;
+	allocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->AllocateMemory(vulkanDevice->logicalDevice, &allocInfo, nullptr, &uniformBuffer.memory));
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->BindBufferMemory(vulkanDevice->logicalDevice, uniformBuffer.buffer, uniformBuffer.memory, 0));
+
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->MapMemory(vulkanDevice->logicalDevice, uniformBuffer.memory, 0, allocInfo.allocationSize, 0, (void **)&data));
+	VkMappedMemoryRange mappedRange = vks::initializers::mappedMemoryRange();
+	mappedRange.memory = uniformBuffer.memory;
+	mappedRange.offset = 0;
+	mappedRange.size = allocInfo.allocationSize;
+	VK_CHECK_RESULT(vulkanDevice->getDispatch()->InvalidateMappedMemoryRanges(vulkanDevice->logicalDevice, 1, &mappedRange));
+	memcpy(data, &fontColor, sizeof(glm::vec4));
+	vulkanDevice->getDispatch()->UnmapMemory(vulkanDevice->logicalDevice, uniformBuffer.memory);
+
+	uniformBuffer.descriptor.buffer = uniformBuffer.buffer;
+	uniformBuffer.descriptor.offset = 0;
+	uniformBuffer.descriptor.range = allocInfo.allocationSize;
 
 	// Font texture
 	VkImageCreateInfo imageInfo = vks::initializers::imageCreateInfo();
@@ -195,7 +224,6 @@ void TextOverlay::prepareResources()
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->AllocateMemory(vulkanDevice->logicalDevice, &allocInfo, nullptr, &stagingBuffer.memory));
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->BindBufferMemory(vulkanDevice->logicalDevice, stagingBuffer.buffer, stagingBuffer.memory, 0));
 
-	uint8_t *data;
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->MapMemory(vulkanDevice->logicalDevice, stagingBuffer.memory, 0, allocInfo.allocationSize, 0, (void **)&data));
 	// Size of the font texture is WIDTH * HEIGHT * 1 byte (only one channel)
 	memcpy(data, &font24pixels[0][0], fontWidth * fontHeight);
@@ -281,14 +309,14 @@ void TextOverlay::prepareResources()
 	samplerInfo.minLod = 0.0f;
 	samplerInfo.maxLod = 1.0f;
 	samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-	//samplerInfo.unnormalizedCoordinates = VK_TRUE;
 	samplerInfo.compareEnable = VK_FALSE;
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->CreateSampler(vulkanDevice->logicalDevice, &samplerInfo, nullptr, &sampler));
 
 	// Descriptor
 	// Font uses a separate descriptor pool
-	std::array<VkDescriptorPoolSize, 1> poolSizes;
+	std::array<VkDescriptorPoolSize, 2> poolSizes;
 	poolSizes[0] = vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1);
+	poolSizes[1] = vks::initializers::descriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
 
 	VkDescriptorPoolCreateInfo descriptorPoolInfo =
 		vks::initializers::descriptorPoolCreateInfo(
@@ -299,8 +327,9 @@ void TextOverlay::prepareResources()
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->CreateDescriptorPool(vulkanDevice->logicalDevice, &descriptorPoolInfo, nullptr, &descriptorPool));
 
 	// Descriptor set layout
-	std::array<VkDescriptorSetLayoutBinding, 1> setLayoutBindings;
+	std::array<VkDescriptorSetLayoutBinding, 2> setLayoutBindings;
 	setLayoutBindings[0] = vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, 0);
+	setLayoutBindings[1] = vks::initializers::descriptorSetLayoutBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT, 1);
 
 	VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo =
 		vks::initializers::descriptorSetLayoutCreateInfo(
@@ -313,10 +342,6 @@ void TextOverlay::prepareResources()
 		vks::initializers::pipelineLayoutCreateInfo(
 			&descriptorSetLayout,
 			1);
-
-	VkPushConstantRange pushConstantRange0 = vks::initializers::pushConstantRange(VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 4, 0);
-	pipelineLayoutInfo.pushConstantRangeCount = 1;
-	pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange0;
 
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->CreatePipelineLayout(vulkanDevice->logicalDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
@@ -335,8 +360,9 @@ void TextOverlay::prepareResources()
 			view,
 			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL /*VK_IMAGE_LAYOUT_GENERAL*/); // validation wants VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
-	std::array<VkWriteDescriptorSet, 1> writeDescriptorSets;
+	std::array<VkWriteDescriptorSet, 2> writeDescriptorSets;
 	writeDescriptorSets[0] = vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 0, &texDescriptor);
+	writeDescriptorSets[1] = vks::initializers::writeDescriptorSet(descriptorSet, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, &uniformBuffer.descriptor);
 	vulkanDevice->getDispatch()->UpdateDescriptorSets(vulkanDevice->logicalDevice, static_cast<uint32_t>(writeDescriptorSets.size()), writeDescriptorSets.data(), 0, NULL);
 
 	// Pipeline cache
@@ -754,9 +780,6 @@ void TextOverlay::updateCommandBuffers(uint32_t i, VkImageMemoryBarrier imb)
 		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 0, 1, &buffer[renderIndex], offsets);
 		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 1, 1, &buffer[renderIndex], offsets);
 		vulkanDevice->getDispatch()->CmdBindVertexBuffers(cmdBuffers[i], 2, 1, &buffer[renderIndex], offsets);
-
-		vulkanDevice->getDispatch()->CmdPushConstants(cmdBuffers[i], pipelineLayout,
-			VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(float) * 0, sizeof(float) * 4, fontColor);
 
 		numLetters = std::min(numLetters, TEXTOVERLAY_MAX_CHAR_COUNT);
 		for (uint32_t j = 0; j < numLetters; j++)

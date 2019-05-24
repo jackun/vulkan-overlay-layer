@@ -47,6 +47,11 @@ private:
 	VkBuffer buffer[2];
 	VkDeviceMemory memory[2];
 	VkDeviceMemory imageMemory;
+	struct {
+		VkDeviceMemory memory;
+		VkBuffer buffer;
+		VkDescriptorBufferInfo descriptor;
+	} uniformBuffer;
 	VkDescriptorPool descriptorPool;
 	VkDescriptorSetLayout descriptorSetLayout;
 	VkDescriptorSet descriptorSet;
@@ -64,7 +69,7 @@ private:
 
 	stb_fontchar stbFontData[STB_FONT_consolas_bold_24_latin1_NUM_CHARS];
 	uint32_t numLetters;
-	float fontColor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+	glm::vec4 fontColor = {1.0f, 1.0f, 1.0f, 1.0f};
 public:
 
 	enum TextAlign { alignLeft, alignCenter, alignRight };
