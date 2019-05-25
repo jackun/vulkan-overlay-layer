@@ -158,7 +158,7 @@ void TextOverlay::prepareResources()
 	allocInfo = vks::initializers::memoryAllocateInfo();
 	vulkanDevice->getDispatch()->GetBufferMemoryRequirements(vulkanDevice->logicalDevice, uniformBuffer.buffer, &memReqs);
 	allocInfo.allocationSize = memReqs.size;
-	allocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+	allocInfo.memoryTypeIndex = vulkanDevice->getMemoryType(memReqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->AllocateMemory(vulkanDevice->logicalDevice, &allocInfo, nullptr, &uniformBuffer.memory));
 	VK_CHECK_RESULT(vulkanDevice->getDispatch()->BindBufferMemory(vulkanDevice->logicalDevice, uniformBuffer.buffer, uniformBuffer.memory, 0));
