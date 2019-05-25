@@ -246,7 +246,7 @@ static void updateTextOverlay(const SwapchainData * const swapchain)
 	InstanceData * instance = device_data->instance;
 	TextOverlay *textOverlay = swapchain->overlay;
 
-	float scaling = .9f, scaling_cpu = .9f;
+	float scaling = 1.0f, scaling_cpu = 1.0f;
 	float tmp_x = overlay_x, tmp_y = overlay_y;
 	std::stringstream ss;
 
@@ -336,7 +336,7 @@ static void updateTextOverlay(const SwapchainData * const swapchain)
 		}
 
 		if (avg_cpus) {
-			ss.str(""); ss.clear(); ss << "CPU: " << std::fixed << std::setprecision(0) << (avg_cpus_percent / cpuid) << "%";
+			ss.str(""); ss.clear(); ss << "CPU:  " << std::fixed << std::setprecision(0) << (avg_cpus_percent / cpuid) << "%";
 			tmp_y += AddStatText(textOverlay, ss.str(), tmp_x, tmp_y, scaling_cpu);
 			cpuid++;
 		}
