@@ -61,6 +61,7 @@ class AMDgpuStats: public IGPUStats
 	private:
 	bool Init();
 	int m_index = -1;
+	int m_igpu = -1;
 	int m_imclk = -1;
 	int m_isclk = -1;
 	int m_imem_temp = -1;

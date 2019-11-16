@@ -192,7 +192,7 @@ std::string getHwmonPath(int index, const char * const suff)
 }
 
 //FIXME un-hard code
-AMDgpuStats::AMDgpuStats(int index): m_index(index)
+AMDgpuStats::AMDgpuStats(int index): m_igpu(index)
 {
 	Init();
 }
@@ -203,12 +203,38 @@ bool AMDgpuStats::Init()
 
 	std::stringstream str;
 	std::string line;
+	DIR* dirp;
 	struct dirent* dp;
 
-	str << "/sys/class/hwmon/hwmon" << m_index;
-	DIR* dirp = opendir(str.str().c_str());
+	str << "/sys/class/drm/card" << m_igpu << "/device/hwmon";
+
+	dirp = opendir(str.str().c_str());
 	if(dirp == NULL) {
-		perror("Error opening /dev/");
+		perror("Error opening drm directory");
+		return false;
+	}
+
+	m_index = -1;
+	bool found_hwmon = false;
+	while ((dp = readdir(dirp))) {
+		if (starts_with(dp->d_name, "hwmon")) {
+			found_hwmon = true;
+			break;
+		}
+	}
+
+	closedir(dirp);
+
+	if (!found_hwmon || sscanf(dp->d_name, "hwmon%d", &m_index) != 1)
+		return false;
+
+	std::cerr << "Using hwmon" << m_index << std::endl;
+
+	str.clear(); str.str("");
+	str << "/sys/class/hwmon/hwmon" << m_index;
+	dirp = opendir(str.str().c_str());
+	if(dirp == NULL) {
+		perror("Error opening hwmon directory");
 		return false;
 	}
 
