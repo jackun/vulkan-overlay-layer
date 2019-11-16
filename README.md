@@ -10,7 +10,7 @@ VK_INSTANCE_LAYERS=VK_LAYER_NUUDEL_overlay [ENABLE_NUUDEL_LAYER=1] /path/to/my_v
   - NUUDEL_POS=xpos,ypos
 * show average cpu usage instead:
   - NUUDEL_AVGCPU=1
-* amdgpu index (really hwmon though), if set shows some hwmon stats:
+* amdgpu index, if set, shows some hwmon stats:
   - NUUDEL_AMDGPU_INDEX=0
 * change text color, alpha is optional:
   - NUUDEL_RGBA=255,128,64[,255]
