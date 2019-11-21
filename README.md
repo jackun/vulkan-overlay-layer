@@ -2,7 +2,7 @@ A Vulkan layer to display information using an overlay.
 
 To turn on the layer run :
 
-VK_INSTANCE_LAYERS=VK_LAYER_NUUDEL_overlay [ENABLE_NUUDEL_LAYER=1] /path/to/my_vulkan_app
+ENABLE_NUUDEL_LAYER=1 /path/to/my_vulkan_app
 
 ### Customize some settings :
 
