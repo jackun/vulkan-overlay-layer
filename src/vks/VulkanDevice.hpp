@@ -89,6 +89,8 @@ namespace vks
 			queueFamilyProperties.resize(queueFamilyCount);
 			instDispatch->GetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilyProperties.data());
 
+			queueFamilyIndices.graphics = getQueueFamilyIndex(VK_QUEUE_GRAPHICS_BIT);
+
 			// Get list of supported extensions
 			uint32_t extCount = 0;
 			instDispatch->EnumerateDeviceExtensionProperties(physicalDevice, nullptr, &extCount, nullptr);
