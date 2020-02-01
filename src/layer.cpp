@@ -250,7 +250,7 @@ static void updateTextOverlay(const SwapchainData * const swapchain)
 	float tmp_x = overlay_x, tmp_y = overlay_y;
 	std::stringstream ss;
 
-#ifndef NDEBUG
+#ifdef NDEBUG
 	if (!textOverlay)
 		return;
 #endif
