@@ -28,6 +28,7 @@ typedef struct CPUData_ {
 	unsigned long long int softIrqPeriod;
 	unsigned long long int stealPeriod;
 	unsigned long long int guestPeriod;
+	float percent;
 } CPUData;
 
 class IGPUStats

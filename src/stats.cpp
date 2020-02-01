@@ -5,7 +5,7 @@
 #include <sstream>
 #include <dirent.h>
 #include <string.h>
-
+#include <algorithm>
 
 #ifndef PROCDIR
 #define PROCDIR "/proc"
@@ -44,7 +44,6 @@ bool CPUStats::Init()
 	do {
 		if (!std::getline(file, line)) {
 			std::cerr << "Failed to read all of " << PROCSTATFILE << std::endl;
-			file.close();
 			return false;
 		} else if (starts_with(line, "cpu")) {
 			if (first) {
@@ -71,7 +70,6 @@ bool CPUStats::Init()
 		}
 	} while(true);
 
-	file.close();
 	UpdateCPUData();
 	return true;
 }
@@ -159,12 +157,22 @@ bool CPUStats::UpdateCPUData()
 			cpuData.guestTime = virtalltime;
 			cpuData.totalTime = totaltime;
 			cpuid = -1;
+
+			float total = (float)(cpuData.totalPeriod == 0 ? 1 : cpuData.totalPeriod);
+			float v[4];
+			v[0] = cpuData.nicePeriod * 100.0f / total;
+			v[1] = cpuData.userPeriod * 100.0f / total;
+
+			/* if not detailed */
+			v[2] = cpuData.systemAllPeriod * 100.0f / total;
+			v[3] = (cpuData.stealPeriod + cpuData.guestPeriod) * 100.0f / total;
+			cpuData.percent = std::clamp(v[0]+v[1]+v[2]+v[3], 0.0f, 100.0f);
+
 		} else {
 			break;
 		}
 	} while(true);
 
-	file.close();
 	m_cpuPeriod = (double)m_cpuData[0].totalPeriod / m_cpuData.size();
 	m_updatedCPUs = true;
 	return ret;
