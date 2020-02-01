@@ -295,12 +295,8 @@ int AMDgpuStats::getCoreClock()
 	std::string line;
 	unsigned long long freq = 0;
 	std::ifstream file(getInputPath(m_index, "freq", m_isclk));
-	if (file.is_open()) {
-		std::getline(file, line);
-		if (sscanf(line.c_str(), "%llu", &freq) == 1)
-			return freq / 1000000;
-		return -1;
-	}
+	if (std::getline(file, line) && sscanf(line.c_str(), "%llu", &freq) == 1)
+		return freq / 1000000;
 	return -1;
 }
 
@@ -309,12 +305,8 @@ int AMDgpuStats::getMemClock()
 	std::string line;
 	unsigned long long freq = 0;
 	std::ifstream file(getInputPath(m_index, "freq", m_imclk));
-	if (file.is_open()) {
-		std::getline(file, line);
-		if (sscanf(line.c_str(), "%llu", &freq) == 1)
-			return freq / 1000000;
-		return -1;
-	}
+	if (std::getline(file, line) && sscanf(line.c_str(), "%llu", &freq) == 1)
+		return freq / 1000000;
 	return -1;
 }
 
@@ -323,12 +315,8 @@ int AMDgpuStats::getCoreTemp()
 	std::string line;
 	unsigned long long value = 0;
 	std::ifstream file(getInputPath(m_index, "temp", m_icore_temp));
-	if (file.is_open()) {
-		std::getline(file, line);
-		if (sscanf(line.c_str(), "%llu", &value) == 1)
-			return value / 1000;
-		return -1;
-	}
+	if (std::getline(file, line) && sscanf(line.c_str(), "%llu", &value) == 1)
+		return value / 1000;
 	return -1;
 }
 
@@ -337,12 +325,8 @@ int AMDgpuStats::getMemTemp()
 	std::string line;
 	unsigned long long value = 0;
 	std::ifstream file(getInputPath(m_index, "temp", m_imem_temp));
-	if (file.is_open()) {
-		std::getline(file, line);
-		if (sscanf(line.c_str(), "%llu", &value) == 1)
-			return value / 1000;
-		return -1;
-	}
+	if (std::getline(file, line) && sscanf(line.c_str(), "%llu", &value) == 1)
+		return value / 1000;
 	return -1;
 }
 
@@ -351,12 +335,8 @@ int AMDgpuStats::getFanSpeed()
 	std::string line;
 	unsigned long long value = 0;
 	std::ifstream file(getInputPath(m_index, "fan", m_ifan));
-	if (file.is_open()) {
-		std::getline(file, line);
-		if (sscanf(line.c_str(), "%llu", &value) == 1)
-			return value;
-		return -1;
-	}
+	if (std::getline(file, line) && sscanf(line.c_str(), "%llu", &value) == 1)
+		return value;
 	return -1;
 }
 
@@ -365,11 +345,7 @@ int AMDgpuStats::getGPUUsage()
 	std::string line;
 	unsigned long long value = 0;
 	std::ifstream file(getHwmonPath(m_index, "device/gpu_busy_percent"));
-	if (file.is_open()) {
-		std::getline(file, line);
-		if (sscanf(line.c_str(), "%llu", &value) == 1)
-			return value;
-		return -1;
-	}
+	if (std::getline(file, line) && sscanf(line.c_str(), "%llu", &value) == 1)
+		return value;
 	return -1;
 }
